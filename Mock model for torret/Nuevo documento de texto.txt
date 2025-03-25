@@ -1,0 +1,11 @@
+Expressions,
+
+Relative to the size of the base.
+
+Relative to size of total model. 
+
+Head(Rotational part for X-axis), Base for the entirety of the upper part.
+Therefore Upper part should be relative to this base.
+
+Diameter (Everything should be relative to the diameter of the base)
+250mm
