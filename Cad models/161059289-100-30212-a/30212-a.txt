@@ -1,0 +1,11 @@
+﻿"Symbol";"Value";"Unit";
+"TraceParts.PartNumber";"33-02052019-081238";"";
+"REFERENCE";"30212-A";"";
+"TraceParts.PartTitle";"Tapered roller bearings 302, main dimensions to DIN ISO 355 / DIN 720, separable, adjusted or in pairs";"";
+"TraceParts.InstanceId";"33-02052019-0812383HFLJZG78RA5BKG7D6A2ONOCQ";"";
+"SELECTION";"30212-A";"";
+"SUPPLIER";"Schaeffler Technologies AG & Co. KG";"";
+"DESIGN";"Barrel roller bearings";"";
+"TRACEPARTS";"TRACEPARTS";"";
+"TraceParts.PartLanguage";"en";"";
+"TraceParts.PartVersion";"1.2.0";"";
