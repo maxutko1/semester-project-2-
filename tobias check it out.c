@@ -114,7 +114,7 @@ void motor_stop(void) {
 
 void motorrun(void) {
     // Continue updating voltage until it's within the tolerance window
-    while ((voltage < needed - tolerance) || (voltage > needed + tolerance)) {
+    //while ((voltage < needed - tolerance) || (voltage > needed + tolerance)) {
         voltage = read_volts(); // Update the voltage value
         // Adjust direction based on updated voltage
         if (voltage < needed - tolerance) {
@@ -124,7 +124,7 @@ void motorrun(void) {
         }
         printf("Moving to position, current voltage: %u mV\n", voltage);
         _delay_ms(1000); // Delay to simulate motor movement response
-    }
+    //}
     // Once within tolerance, stop the motor
     motor_stop();
     printf("We are at the right position\n");
