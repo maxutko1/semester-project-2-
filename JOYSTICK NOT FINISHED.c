@@ -5,7 +5,7 @@
  #include "usart.h"
  
 // #define F_CPU 16000000UL
- #define BAUD 9600
+#define BAUD 9600
 #define MOTOR_IN3_PIN  PB0    // L298N IN3
 #define MOTOR_IN4_PIN  PB1    // L298N IN4
 #define MOTOR_SPEED 255  // PWM duty cycle (0-255) for motor speed
