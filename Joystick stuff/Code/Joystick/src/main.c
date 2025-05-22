@@ -72,7 +72,7 @@ void turret_state(void){                                    // Turret state depe
       printf("turret is turning clockwise \n");
     }
     else if(x_direction == -1){
-      printf("turret is turning counterclock wise \n");
+      printf("turret is turning counterclockwise \n");
     }
   }
 
@@ -84,28 +84,6 @@ void turret_state(void){                                    // Turret state depe
       printf("turret is aiming upwards \n");
     }
   }
-
-    /*if(adc_result_x>600){                                                    // check x-axis adc values
-      printf("turret is turning clockwise ");
-      printf("%d X, %d Y \n", adc_result_x, adc_result_y);
-      //do something ..
-    }
-    if(adc_result_x<400 && adc_result_y){                                   //check x-axis adc values 
-      printf("turret is turning counter-clockwise ");
-      printf("%d X, %d Y \n", adc_result_x, adc_result_y);
-      // do something ..
-    }
-    if(adc_result_y<400){                                   //check y-axis adc values 
-      printf("turret is aiming up ");
-      printf("%d X, %d Y \n", adc_result_x, adc_result_y);
-
-      //do something ..
-    }
-    if(adc_result_y>600){                                   //check y-axis adc values 
-      printf("turret is aiming down ");
-      printf("%d X, %d Y \n", adc_result_x, adc_result_y);
-      //do something ..
-    }*/
 }
 
 
