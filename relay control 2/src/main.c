@@ -23,21 +23,21 @@ get_temperature(); | reads the value of the temperaturethrough the sensor. can b
 #include "usart.h"
 #include <lm75.h>
 #include <stdbool.h>
-#include <lcd.h>
+//#include <lcd.h>
 #include <avr/eeprom.h>
- int time;
- int howLong;
-void Reload(int time){
-  PORTB = (0<<PB4);
-  for(int i = 0;i<time;i++){
-  _delay_ms(1000);1
+ int time; // global variable
+ int howLong;//globale variable
+void Reload(int time){ // function, takes the amount of time you want to reload for. 1 sek is ish 8 psi. 
+  PORTB = (0<<PB4);//turn the relay on. the relay works by putting the input pin to ground
+  for(int i = 0;i<time;i++){// a for loop to control the amount of time it should reload for. 
+  _delay_ms(1000); // delay
   }
-  PORTB = (1<<PB4);
+  PORTB = (1<<PB4);//turns the relay off
 }
-void shoot(int howLong){
-  PORTD = (0<<PD7);
-  for(int x = 0;x<howLong;x++){
-    _delay_ms(100);
+void shoot(int howLong){ // again same thing, but this releases pressure exponentially. therefore, 8 psi ish pr 0.1 sec of shooting
+  PORTD = (0<<PD7);//same thing, diffrent pin 
+  for(int x = 0;x<howLong;x++){//same thing
+    _delay_ms(100);//same thing
 }
 PORTD = (1<<PD7);
 }
@@ -49,12 +49,12 @@ int main(void) {
     PORTD = 0xff;
     PORTB = 0xff;
 while(1){
-  printf("Please enter how much time you want to reload for\n");
-  scanf("%u", &time);
-  Reload(time);
-  time= 0;
+  printf("Please enter how much time you want to reload for\n");//this is currently how we get how much to reload for. 
+  scanf("%u", &time);//type in a how much time u want
+  Reload(time);//reload for the amount of time. 
+  time= 0;//resets the time. this could be moved to the function. 
   printf("Please enter how much time you want to shoot for for\n");
-  scanf("%u", &howLong);
+  scanf("%u", &howLong);//same thing
   shoot(howLong);
   howLong = 0;
 
