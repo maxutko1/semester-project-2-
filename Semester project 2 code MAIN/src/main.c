@@ -6,7 +6,7 @@
  */ 
 #include <avr/wdt.h>
 #include <avr/io.h>
-#include <string.h>
+#include <string.h>z
 #include <stdlib.h>
 #include <stdio.h>
 #include <util/delay.h> // Delay functions
