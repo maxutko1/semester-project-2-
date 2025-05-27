@@ -262,6 +262,11 @@ void handle_page4_buttons(void) {
                         printf("sleep=1%c%c%c", 255, 255, 255);
                         break;
 
+                    case 0x06: //HOME button
+                        current_page = 1;
+                        reset = 1;
+                        break;
+
                     default:
                         break;
                 }
