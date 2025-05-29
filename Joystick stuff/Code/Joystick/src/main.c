@@ -1,89 +1,155 @@
 #include <stdio.h>
-#include <avr/io.h> // + delay, + usart, + io
+#include <avr/io.h>
 #include <util/delay.h>
 #include "usart.h"
-#include "i2cmaster.h"
-#include <util/delay.h>
+#include <stdbool.h>
+#include <avr/eeprom.h>
+#include <stdint.h>
 
-//functions declerations
-uint16_t adc_read(uint8_t adc_channel);
-uint16_t Joystick_ADC_Values();
+//Definitions
+#define MOTOR_IN3_PIN  PB2    // L298N IN3
+#define MOTOR_IN4_PIN  PB3    // L298N IN4
+#define MOTOR_SPEED 200  // PWM duty cycle (0-255) for motor speed
 
-//global variables
-uint16_t adc_result_x;
-uint16_t adc_result_y;
+// Global variables:
+uint16_t current_postion_X = 0;
+unsigned int address = 0;
+uint16_t neededX;
+uint16_t difference;
 
-int main(){
-  uart_init();
-  io_redirect();
-  
-  while(1){
-   turret_state();
-  }
+// Function prototypes:
+void difference_function(void);
+void counter(void);
+void update_position(void);
+void movement(void);
+void stopX(void);
+void directionX(int);
+void pwm_init(void);
+void pwm_set(uint8_t duty);
+
+int main(void) {  
+    uart_init();
+    io_redirect();
+    pwm_init();
+
+    current_postion_X = eeprom_read_byte((uint16_t *)address);   //using eeprom memory to read the last position
+    printf(" %u\n", current_postion_X);
+    //encoder counter.
+    counter();
+
+    printf("type it in \n");
+    scanf("%u", &neededX);
+
+    difference_function();
+    printf("difference is %u\n", difference);
+    
+    if (current_postion_X > neededX) {
+        directionX(0); 
+    }
+    else if (current_postion_X < neededX) {
+        directionX(1);  
+    }
+
+    movement(); 
+
+    update_position();
+
+    while (1) {
+
+       /* _delay_ms(1);
+        printf("Current position: %u\n", TCNT1); */
+    }
+    
+    return 0; 
 }
 
-uint16_t adc_read(uint8_t adc_channel){
-  ADMUX &= 0xF0;                         // clear registers 
-  ADMUX |= adc_channel;                  // sets the MUX (4 last bits of ADMUX) and sets which ADC we'll use (depending on input)
-  ADCSRA |= (1<<ADSC);                   // starts the conversion 
-  while( (ADCSRA & (1<<ADSC)) );         // waits for conversion to complete
-  return ADC;                            // returns the results
+void counter(void) {
+    DDRD &= ~(1 << DDD4);   // Set pin 4 as input
+    PORTD |= (1 << PORTD4);  // Enable pull-up on PD4
+    TCCR1B |= (1 << CS12) | (1 << CS11) | (1 << CS10); // Set Timer1 prescaler
 }
 
-uint16_t Joystick_ADC_Values(){ 
-  ADMUX = (1<<REFS0);                                       // These bits select the voltage reference for the ADC (AV_CC with external capacitor at AREF pin)
-  ADCSRA = (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0)|(1<<ADEN);      // Enables ADC and sets prescaler to 128
-  adc_result_x = adc_read(1);                               // Reads ADC PIN 0, which is our x axis
-  adc_result_y = adc_read(2);                               // Reads ADC PIN 1, which is our y axis
+void difference_function(void) {
+    // calculating the difference between neededX and current_postion_X.
+    if (neededX > current_postion_X) {
+        difference = neededX - current_postion_X;
+    } else {
+        difference = current_postion_X - neededX;
+    }
 }
 
-void turret_state(void){                                    // Turret state depending on joystick input
-  
-  Joystick_ADC_Values();
-  
-  int x_direction = 0;                      // Will determine X direction (clockwise or counterclockwise)
-  int x_strenght = 0;                       // Variable that will hold the strenght of the X signal
-  if(adc_result_x > 600){
-    x_direction = 1;                    // Clockwise
-    x_strenght = adc_result_x - 600;    // Strenght of the X signal
-  }
-  if(adc_result_x < 400){
-    x_direction = -1;                   // Counter-clockwise 
-    x_strenght = 400 - adc_result_x;    // Strenght of the X signal
-  }
-
-  int y_direction = 0;                      // Direction (downwards or upwards)
-  int y_strenght = 0;                       // Variable that will hold the strenght of the Y signal
-  if(adc_result_y > 600){
-    y_direction = 1;                    // Downwards
-    y_strenght = adc_result_y - 600;    // Strenght of the Y signal
-  }
-  if(adc_result_y < 400){
-    y_direction = -1;                   // Upwards 
-    y_strenght = 400 - adc_result_y;    // Strenght of the Y signal 
-  }
-
-  if(x_strenght == 0 && y_strenght == 0){
-    return;
-  }
-
-  if(x_strenght > y_strenght){
-    if(x_direction == 1){
-      printf("turret is turning clockwise \n");
+void update_position(void) {
+    if (neededX < current_postion_X){
+        current_postion_X = (current_postion_X - difference) % 360;
     }
-    else if(x_direction == -1){
-      printf("turret is turning counterclockwise \n");
+    else {
+    current_postion_X = (current_postion_X + difference) % 360;
     }
-  }
-
-  else{
-    if(y_direction == 1){
-      printf("turret is aiming downwards \n");
+    if(current_postion_X < 0) {
+        current_postion_X += 360;
     }
-    else if(y_direction == -1){
-      printf("turret is aiming upwards \n");
-    }
-  }
+    printf("hey ho %u\n", current_postion_X);
+    eeprom_write_word((uint16_t *)address, current_postion_X);
 }
+
+void movement(void){
+    uint16_t target = TCNT1 + difference;
+
+    if(target >= 360) {
+        target = target % 360;
+    }
+
+    while (TCNT1 < target) {
+        pwm_set(MOTOR_SPEED);
+        counter();
+        printf("Moving... Current counter: %u\n", TCNT1);
+    }
+    printf("Reached target position\n");
+    stopX();
+}
+
+void directionX(int dir){
+    if (dir==0){
+        //here we set the motor to go counterclockwise
+        PORTB &= ~(1 << MOTOR_IN3_PIN);
+        PORTB |= (1 << MOTOR_IN4_PIN);
+        printf("motor is going ccw\n");
+    }
+    if (dir==1){
+        //set the motor to go clockwise 
+        PORTB |= (1 << MOTOR_IN3_PIN);
+        PORTB &= ~(1 << MOTOR_IN4_PIN);
+        printf("clockwise\n");
+    }
+}
+
+void stopX(void){
+    //the motor is stopped here 
+    pwm_set(0);
+    printf("the motor is stpopped\n");
+    _delay_ms(5000);
+}
+
+void pwm_init() {
+    // Set Pin D3 (PD3/OC2B) as output
+    DDRD |= (1 << PD3);
+
+    // Set Fast PWM mode: WGM22:0 = 0b011
+    TCCR2A |= (1 << WGM20) | (1 << WGM21); // WGM21:0 = 11
+    TCCR2B |= (1 << CS22);                // Prescaler = 64 (CS22 = 1)
+
+    // Non-inverting mode for OC2B (Pin D3)
+    TCCR2A |= (1 << COM2B1);
+
+    // Set duty cycle (0-255)
+    OCR2B = 0;
+}
+
+void pwm_set(uint8_t duty) {
+    printf("pwm is set %u\n", duty);
+    OCR2B = duty; // Set PWM duty cycle (0-255)
+}
+
+
 
 
