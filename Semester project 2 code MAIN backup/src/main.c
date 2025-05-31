@@ -6,7 +6,7 @@
  */ 
 #include <avr/wdt.h>
 #include <avr/io.h>
-#include <string.h>z
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <util/delay.h> // Delay functions
@@ -26,12 +26,16 @@
 // Motor A (Angle Control) Definitions
 #define MOTOR_IN1 PB0
 #define MOTOR_IN2 PB1
-#define MOTOR_A_SPEED 200
+#define MOTOR_A_SPEED 85
 
 // Motor B (Position Control) Definitions
 #define MOTOR_IN3 PB2
 #define MOTOR_IN4 PB3
 #define MOTOR_B_SPEED 200
+
+// Shooting Pins
+#define SHOOT_RELAY PD7
+#define SHOOT_BUTTON PD2
 
 // Angle control globals (Motor A)
 uint16_t neededAngleA;
@@ -112,7 +116,13 @@ int main(void)
     pwmA_init();
     pwmB_init();
 
-    DDRB |= (1 << MOTOR_IN1) | (1 << MOTOR_IN2) | (1 << MOTOR_IN3) | (1 << MOTOR_IN4); // Set motor pins as output
+    DDRB |= (1 << MOTOR_IN1) | (1 << MOTOR_IN2) | (1 << MOTOR_IN3) | (1 << MOTOR_IN4);
+    DDRD |= (1 << SHOOT_RELAY);   // PD7 output (shooting relay)
+    DDRB |= (1 << PB4);  // PB4 output (reload relay)
+    PORTB = (1 << PB4);  // Relay OFF (active low)
+    PORTD = (1 << SHOOT_RELAY);  // Relay OFF (active low)
+    DDRD &= ~(1 << SHOOT_BUTTON); // PD2 input (shoot button)
+    PORTD |= (1 << SHOOT_BUTTON); // Enable pull-up on button
 
     printf("page page0%c%c%c", 255, 255, 255);
     _delay_ms(300);
@@ -134,7 +144,7 @@ int main(void)
         if(reset == 1){
             reset = 0;
             fire = 0;
-            printf("firing stopped");
+            //printf("firing stopped");
             soft_reset();
         }
         
@@ -145,7 +155,6 @@ int main(void)
 void select_mode_coordinates(void)
 {
     unsigned char readBuffer[8];
-    int typeExpected = 0;
 
     // Wait for button event
     while (uart_data_available() < 7);
@@ -219,7 +228,7 @@ void handle_page1_buttons(void){
             reload_position();
         }
         else if (readBuffer[1] == 0x00 && readBuffer[2] == 0x05) {
-            printf("done reloading button pressed");
+            //printf("done reloading button pressed");
             reset_turret();
         }
     }
@@ -239,8 +248,8 @@ void handle_page4_buttons(void) {
         index++;
 
         if (index == 7) {
-            printf("Touch Event (Page 4): %02X %02X %02X %02X %02X %02X %02X\n",
-                   buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6]);
+            //printf("Touch Event (Page 4): %02X %02X %02X %02X %02X %02X %02X\n",
+                   //buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6]);
 
             if (buffer[0] == 0x65 &&
                 buffer[4] == 0xFF &&
@@ -252,10 +261,8 @@ void handle_page4_buttons(void) {
                     case 0x03:  // Fire button
                         //fire = 1;
                         //printf("page page0%c%c%c", 255, 255, 255);
-                        shoot(howLong);
-                        _delay_ms(300);
-                        flush_uart();
-                        reset = 1;
+                        reload_pressure(15);
+                        shoot(3);
                         break;
 
                     case 0x07:  // Power button
@@ -310,20 +317,23 @@ void select_mode_manual(void){
 
   if(x_strenght > y_strenght){
     if(x_direction == 1){
-        //pwm instead of all of these printfs'
-      printf("turret is turning clockwise \n");
+        directionX(1);
+            pwmB_set(MOTOR_B_SPEED);
     }
     else if(x_direction == -1){
-      printf("turret is turning counterclockwise \n");
+      directionX(0);
+            pwmB_set(MOTOR_B_SPEED);
     }
   }
 
   else{
     if(y_direction == 1){
-      printf("turret is aiming downwards \n");
+       motorA_cw();
+            pwmA_set(MOTOR_A_SPEED);
     }
     else if(y_direction == -1){
-      printf("turret is aiming upwards \n");
+        motorA_ccw();
+                pwmA_set(MOTOR_A_SPEED);
     }
   }
 }
@@ -338,7 +348,7 @@ void calculations_for_y(void){
     y_axis = asin(term4)/2;
     //printf("y-axis is %f\n", y_axis);
 
-    neededAngleA = y_axis + 150;
+    neededAngleA = y_axis + 210;
 
     run_motor_control_sequence();
 }
@@ -420,10 +430,10 @@ void motorA_run() {
             motorA_cw();
             pwmA_set(MOTOR_A_SPEED);
         }
-        printf("Adjusting angle... Current: %u degrees\n", angleA);
+        //printf("Adjusting angle... Current: %u degrees\n", angleA);
     }
     motorA_stop();
-    printf("Angle within tolerance: %u degrees\n", angleA);
+    //printf("Angle within tolerance: %u degrees\n", angleA);
 }
 
 // ---------------- POSITION CONTROL (Motor B) ----------------
@@ -442,18 +452,18 @@ void pwmB_set(uint8_t duty) {
 
 void stopX(void) {
     pwmB_set(0);
-    printf("Position motor stopped\n");
+    //printf("Position motor stopped\n");
 }
 
 void directionX(int dir) {
     if (dir == 0) {
         PORTB &= ~(1 << MOTOR_IN3);
         PORTB |= (1 << MOTOR_IN4);
-        printf("Motor B direction: CCW\n");
+        //printf("Motor B direction: CCW\n");
     } else {
         PORTB |= (1 << MOTOR_IN3);
         PORTB &= ~(1 << MOTOR_IN4);
-        printf("Motor B direction: CW\n");
+        //printf("Motor B direction: CW\n");
     }
 }
 
@@ -476,7 +486,7 @@ void update_position(void) {
     if (current_postion_X < 0)
         current_postion_X += 360;
 
-    printf("Updated position: %u\n", current_postion_X);
+    //printf("Updated position: %u\n", current_postion_X);
     eeprom_write_word((uint16_t *)address, current_postion_X);
 }
 
@@ -486,31 +496,31 @@ void movement(void) {
 
     while (TCNT1 < target) {
         pwmB_set(MOTOR_B_SPEED);
-        printf("Moving... Encoder: %u\n", TCNT1);
+        //printf("Moving... Encoder: %u\n", TCNT1);
     }
 
     stopX();
-    printf("Reached target position\n");
+    //printf("Reached target position\n");
 }
 
 void run_motor_control_sequence(void) {
 
     // EEPROM: Read saved position
     current_postion_X = eeprom_read_word((uint16_t *)address);
-    printf("Current EEPROM position: %u\n", current_postion_X);
+    //printf("Current EEPROM position: %u\n", current_postion_X);
 
     // --- Angle Control (Motor A)
-    printf("Needed angle for A: %u\n", neededAngleA);
+    //printf("Needed angle for A: %u\n", neededAngleA);
     motorA_run();
 
     // --- Position Control (Motor B)
     counter(); // Start encoder counter
 
-    printf("Needed angle for x: %u\n", neededX);
+    //printf("Needed angle for x: %u\n", neededX);
     //scanf("%u", &neededX);
 
     difference_function();
-    printf("Difference to move: %u degrees\n", difference);
+    //printf("Difference to move: %u degrees\n", difference);
 
     if (current_postion_X > neededX)
         directionX(0); // CCW
@@ -520,25 +530,23 @@ void run_motor_control_sequence(void) {
     movement();
     update_position();
 
-    printf("Motor control sequence completed.\n");
+    //printf("Motor control sequence completed.\n");
 }
 
 void reload_position(void){
     neededAngleA = 240;
 
     // --- Angle Control (Motor A)
-    printf("Needed angle for A: %u\n", neededAngleA);
+    //printf("Needed angle for A: %u\n", neededAngleA);
     motorA_run();
 
-    printf("turret at reload position");
-
-    reload_pressure(time);
+    //printf("turret at reload position");
 
     reset = 1;
 }
 
 void reset_turret(void){
-    neededAngleA = 150;
+    neededAngleA = 210;
 
     motorA_run();
 
@@ -558,20 +566,28 @@ void reset_turret(void){
     reset = 1;
 }
 
-void shoot(int howLong){ // again same thing, but this releases pressure exponentially. therefore, 8 psi ish pr 0.1 sec of shooting
-  PORTD = (0<<PD7);//same thing, diffrent pin 
-  for(int x = 0;x<howLong;x++){//same thing
-    _delay_ms(100);//same thing
-}
-PORTD = (1<<PD7);
+void shoot(int howLong) {
+    PORTD &= ~(1 << SHOOT_RELAY);  // Relay ON
+    for (int i = 0; i < howLong; i++) {
+        _delay_ms(100);
+    }
+    PORTD |= (1 << SHOOT_RELAY);   // Relay OFF
+
+    _delay_ms(5000);
+
+    flush_uart();
+    //soft_reset();
+    reset = 1;
 }
 
 void reload_pressure(int time){ // function, takes the amount of time you want to reload for. 1 sek is ish 8 psi. 
-  PORTB = (0<<PB4);//turn the relay on. the relay works by putting the input pin to ground
-  for(int i = 0;i<time;i++){// a for loop to control the amount of time it should reload for. 
-  _delay_ms(1000); // delay
-  }
-  PORTB = (1<<PB4);//turns the relay off
+   // Now energize the reload relay
+    
+   PORTB &= ~(1 << PB4);  // Turn relay ON (active low)
+    for (int i = 0; i < time; i++) {
+        _delay_ms(1000);   // Wait 1 second per loop
+    }
+    PORTB |= (1 << PB4);   // Turn relay OFF
 }
 
 uint16_t adc_read(uint8_t adc_channel){
