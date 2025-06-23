@@ -26,12 +26,12 @@
 // Motor A (Angle Control) Definitions
 #define MOTOR_IN1 PB0
 #define MOTOR_IN2 PB1
-#define MOTOR_A_SPEED 85
+#define MOTOR_A_SPEED 90
 
 // Motor B (Position Control) Definitions
 #define MOTOR_IN3 PB2
 #define MOTOR_IN4 PB3
-#define MOTOR_B_SPEED 200
+#define MOTOR_B_SPEED 240
 
 // Shooting Pins
 #define SHOOT_RELAY PD7
@@ -59,7 +59,7 @@ uint16_t adc_result_y;
 // Function Prototypes
 // --- Angle Motor (Motor A)
 void adc_init(void);
-uint16_t read_adc(void);
+uint16_t read_adc(uint8_t adc_channel);
 uint16_t read_angleA(void);
 void pwmA_init(void);
 void pwmA_set(uint8_t duty);
@@ -87,6 +87,8 @@ int reset;
 int current_page = 1;
 int time; // global variable
 int howLong;//globale variable
+uint16_t last_encoder = 0;  // Store the last encoder value
+int manual_flag = 0;
 
 // Function prototype
 void select_mode_coordinates(void);
@@ -104,6 +106,7 @@ void reload_position(void);
 void reset_turret(void);
 void shoot(int howlong);
 void reload_pressure(int time);
+void manual_motor_control(int x_dir, int x_strength, int y_dir, int y_strength);
 
 int main(void)
 {
@@ -144,10 +147,24 @@ int main(void)
         if(reset == 1){
             reset = 0;
             fire = 0;
+            manual_flag = 0;
             //printf("firing stopped");
             soft_reset();
         }
-        
+
+        if(manual_flag == 1){
+            //printf("manual mode up and running\n");
+            while (manual_flag == 1 && reset == 0) {
+            select_mode_manual();
+            
+            if (!(PIND & (1 << SHOOT_BUTTON))) {
+                printf("Button pressed, shooting for 0.3 seconds\n");
+                reload_pressure(15);
+                shoot(3);
+                _delay_ms(500);  // debounce
+            }
+        }
+    }
     }
 }
 
@@ -219,7 +236,8 @@ void handle_page1_buttons(void){
         readBuffer[6] == 0xFF) {
 
         if (readBuffer[1] == 0x00 && readBuffer[2] == 0x02) {
-            select_mode_manual();
+            manual_flag = 1;
+            current_page = 4;
         } 
         else if (readBuffer[1] == 0x00 && readBuffer[2] == 0x03) {
             select_mode_coordinates();
@@ -288,54 +306,33 @@ void handle_page4_buttons(void) {
 
 void select_mode_manual(void){
     Joystick_ADC_Values();
-  
-  int x_direction = 0;                      // Will determine X direction (clockwise or counterclockwise)
-  int x_strenght = 0;                       // Variable that will hold the strenght of the X signal
-  if(adc_result_x > 600){
-    x_direction = 1;                    // Clockwise
-    x_strenght = adc_result_x - 600;    // Strenght of the X signal
-  }
-  if(adc_result_x < 400){
-    x_direction = -1;                   // Counter-clockwise 
-    x_strenght = 400 - adc_result_x;    // Strenght of the X signal
-  }
 
-  int y_direction = 0;                      // Direction (downwards or upwards)
-  int y_strenght = 0;                       // Variable that will hold the strenght of the Y signal
-  if(adc_result_y > 600){
-    y_direction = 1;                    // Downwards
-    y_strenght = adc_result_y - 600;    // Strenght of the Y signal
-  }
-  if(adc_result_y < 400){
-    y_direction = -1;                   // Upwards 
-    y_strenght = 400 - adc_result_y;    // Strenght of the Y signal 
-  }
+    int x_direction = 0, x_strength = 0;
+    if (adc_result_x > 600) {
+        x_direction = 1;
+        x_strength = adc_result_x - 600;
+    } else if (adc_result_x < 400) {
+        x_direction = -1;
+        x_strength = 400 - adc_result_x;
+    }
 
-  if(x_strenght == 0 && y_strenght == 0){
-    return;
-  }
+    int y_direction = 0, y_strength = 0;
+    if (adc_result_y > 600) {
+        y_direction = 1;
+        y_strength = adc_result_y - 600;
+    } else if (adc_result_y < 400) {
+        y_direction = -1;
+        y_strength = 400 - adc_result_y;
+    }
 
-  if(x_strenght > y_strenght){
-    if(x_direction == 1){
-        directionX(1);
-            pwmB_set(MOTOR_B_SPEED);
+    if (x_strength == 0 && y_strength == 0) {
+        stopX();
+        motorA_stop();
+        return;
     }
-    else if(x_direction == -1){
-      directionX(0);
-            pwmB_set(MOTOR_B_SPEED);
-    }
-  }
 
-  else{
-    if(y_direction == 1){
-       motorA_cw();
-            pwmA_set(MOTOR_A_SPEED);
-    }
-    else if(y_direction == -1){
-        motorA_ccw();
-                pwmA_set(MOTOR_A_SPEED);
-    }
-  }
+    manual_motor_control(x_direction, x_strength, y_direction, y_strength);
+    update_position();
 }
 
 
@@ -386,14 +383,15 @@ void adc_init() {
     ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 }
 
-uint16_t read_adc() {
+uint16_t read_adc(uint8_t adc_channel) {
+    ADMUX = (ADMUX & 0xF0) | adc_channel;
     ADCSRA |= (1 << ADSC);
     while (ADCSRA & (1 << ADSC));
     return ADC;
 }
 
 uint16_t read_angleA() {
-    return (read_adc() * 300UL) / 1023;
+    return (read_adc(0) * 300UL) / 1023;
 }
 
 void pwmA_init() {
@@ -430,10 +428,10 @@ void motorA_run() {
             motorA_cw();
             pwmA_set(MOTOR_A_SPEED);
         }
-        //printf("Adjusting angle... Current: %u degrees\n", angleA);
+        printf("Adjusting angle... Current: %u degrees\n", angleA);
     }
     motorA_stop();
-    //printf("Angle within tolerance: %u degrees\n", angleA);
+    printf("Angle within tolerance: %u degrees\n", angleA);
 }
 
 // ---------------- POSITION CONTROL (Motor B) ----------------
@@ -599,8 +597,46 @@ uint16_t adc_read(uint8_t adc_channel){
 }
 
 uint16_t Joystick_ADC_Values(){ 
-  ADMUX = (1<<REFS0);                                       // These bits select the voltage reference for the ADC (AV_CC with external capacitor at AREF pin)
-  ADCSRA = (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0)|(1<<ADEN);      // Enables ADC and sets prescaler to 128
-  adc_result_x = adc_read(1);                               // Reads ADC PIN 0, which is our x axis
-  adc_result_y = adc_read(2);                               // Reads ADC PIN 1, which is our y axis
+    adc_result_x = read_adc(1);
+    adc_result_y = read_adc(2);
+  //  printf("Joystick X: %u, Y: %u\n", adc_result_x, adc_result_y);                              // Reads ADC PIN 1, which is our y axis
+}
+
+void manual_motor_control(int x_dir, int x_strength, int y_dir, int y_strength) {
+    uint16_t current_encoder = TCNT1;
+    int16_t delta;
+
+    if (x_strength > y_strength) {
+        if (x_dir == 1) {
+            directionX(1);
+            pwmB_set(MOTOR_B_SPEED);
+            delta = (int16_t)(current_encoder - last_encoder);
+            current_postion_X = (current_postion_X + delta) % 360;
+            printf("Manual CW. ΔEncoder: %d, New Pos: %u\n", delta, current_postion_X);
+        } else if (x_dir == -1) {
+            directionX(0);
+            pwmB_set(MOTOR_B_SPEED);
+            delta = (int16_t)(last_encoder - current_encoder);
+            current_postion_X = (current_postion_X + 360 - delta) % 360;
+            printf("Manual CCW. ΔEncoder: %d, New Pos: %u\n", delta, current_postion_X);
+        }
+        last_encoder = current_encoder;
+
+    } else {
+        if (y_dir == 1) {
+            motorA_cw();
+            pwmA_set(MOTOR_A_SPEED);
+            printf("Manual A CW. Potentiometer: %u\n", read_angleA());
+        } else if (y_dir == -1) {
+            if (read_angleA() <= 240) {
+                motorA_ccw();
+                pwmA_set(MOTOR_A_SPEED);
+                printf("Manual A CCW. Potentiometer: %u\n", read_angleA());
+            } else {
+                printf("Angle limit reached\n");
+            }
+        }
+    }
+
+    eeprom_write_word((uint16_t *)address, current_postion_X);
 }

@@ -94,6 +94,7 @@ int main(void) {
     DDRD |= (1 << SHOOT_RELAY);   // PD7 output (shooting relay)
     DDRD &= ~(1 << SHOOT_BUTTON); // PD2 input (shoot button)
     PORTD |= (1 << SHOOT_BUTTON); // Enable pull-up on button
+    PORTD |= (1 << SHOOT_RELAY); // Enable pull-up on button
 
     printf("page page0%c%c%c", 255, 255, 255);
     _delay_ms(300);
